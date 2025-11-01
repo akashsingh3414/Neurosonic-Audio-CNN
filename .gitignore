@@ -1,0 +1,8 @@
+*__pycache__
+venv/
+*.zip
+ESC-50-master
+*.pt
+*.ckpt
+*.log
+*.wav

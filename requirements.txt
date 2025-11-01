@@ -1,0 +1,14 @@
+pandas
+torchaudio
+torch
+matplotlib
+tqdm
+numpy
+scikit-learn
+tensorboard
+seaborn
+notebook
+fastapi
+librosa
+uvicorn
+pydantic
