@@ -12,11 +12,11 @@ from torch.utils.tensorboard import SummaryWriter
 from torch.optim.lr_scheduler import CosineAnnealingLR
 from sklearn.metrics import f1_score, precision_score, recall_score, roc_auc_score
 
-from model import AudioCNN
-from dataset import ESC50Dataset
-from transform import AudioTransforms
-from mixup import Mixup
-from logger import Logger
+from utils.model import AudioCNN
+from utils.dataset import ESC50Dataset
+from utils.transform import AudioTransforms
+from utils.mixup import Mixup
+from utils.logger import Logger
 
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
 

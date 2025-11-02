@@ -1,6 +1,6 @@
 import torch.nn as nn
 import torchaudio.transforms as T
-from augmentation import TimeShift, PitchShift, AddGaussianNoise, NormalizeSpec
+from utils.augmentation import TimeShift, PitchShift, AddGaussianNoise, NormalizeSpec
 
 class AudioTransforms:
     """Encapsulates training and validation transforms for ESC-50."""
