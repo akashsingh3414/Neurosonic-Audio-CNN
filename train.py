@@ -1,4 +1,6 @@
 import os
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
+
 import sys
 import torch
 import torch.nn as nn
@@ -18,8 +20,6 @@ from utils.transform import AudioTransforms
 from utils.mixup import Mixup
 from utils.logger import Logger
 
-os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
-
 
 def train_one_epoch(model, train_loader, criterion, optimizer, scheduler, device, 
                      epoch, num_epochs, writer, use_mixup=True):
@@ -31,7 +31,7 @@ def train_one_epoch(model, train_loader, criterion, optimizer, scheduler, device
     
     progress_bar = tqdm(train_loader, desc=f'Epoch {epoch+1}/{num_epochs}', ncols=100, file=sys.stdout)
     
-    for data, target in progress_bar:
+    for batch_idx, (data, target) in enumerate(progress_bar):
         data, target = data.to(device), target.to(device)
         
         # Apply mixup with 60% probability
@@ -40,7 +40,7 @@ def train_one_epoch(model, train_loader, criterion, optimizer, scheduler, device
         if use_mixup_batch:
             data, target_a, target_b, lam = Mixup(alpha=0.4).apply(data, target)
             output = model(data)
-            loss = Mixup(alpha=0.4).criterion(output, target_a, target_b, lam)
+            loss = Mixup(alpha=0.4).criterion(criterion, output, target_a, target_b, lam)
         else:
             output = model(data)
             loss = criterion(output, target)
@@ -161,6 +161,7 @@ def train(use_cross_validation=False, num_folds=5):
 def train_one_fold(train_dataset, val_dataset, classes, writer, fold_num, timestamp):
     """Train model on one fold"""
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    print(f"Using device: {device}")
     model = AudioCNN(num_classes=len(classes)).to(device)
     
     train_loader = DataLoader(train_dataset, batch_size=32, shuffle=True, num_workers=4, pin_memory=True, drop_last=True)
@@ -172,25 +173,56 @@ def train_one_fold(train_dataset, val_dataset, classes, writer, fold_num, timest
     scheduler = CosineAnnealingLR(optimizer, T_max=num_epochs, eta_min=1e-6)
     
     best_val_loss, best_accuracy, patience, trigger_times = float('inf'), 0, 30, 0
+    logger = Logger(writer)
     
     print(f"\nStarting training on {device}...")
     for epoch in range(num_epochs):
-        train_loss, train_acc = train_one_epoch(model, train_loader, criterion, optimizer, scheduler, device, epoch, num_epochs, writer)
+        train_loss, train_acc = train_one_epoch(model, train_loader, criterion, optimizer, scheduler, device, epoch, num_epochs, writer, use_mixup=True)
         val_loss, val_acc, f1, precision, recall, auc = validate(model, val_loader, criterion, device)
         scheduler.step()
         
-        Logger.log_metrics(writer, epoch, train_loss, val_loss, train_acc, val_acc, f1, precision, recall, auc, optimizer.param_groups[0]['lr'])
+        logger.log_metrics(epoch, train_loss, val_loss, train_acc, val_acc, f1, precision, recall, auc, optimizer.param_groups[0]['lr'])
         
         if val_loss < best_val_loss:
             best_val_loss, best_accuracy, trigger_times = val_loss, val_acc, 0
             os.makedirs('./saved_models', exist_ok=True)
-            torch.save({'epoch': epoch, 'model_state_dict': model.state_dict(),
-                        'optimizer_state_dict': optimizer.state_dict(),
-                        'scheduler_state_dict': scheduler.state_dict(),
-                        'val_loss': val_loss, 'val_accuracy': val_acc,
-                        'classes': classes}, 
-                       f'./saved_models/best_model_fold{fold_num}_{timestamp}.pth' if fold_num > 0 else f'./saved_models/best_model_{timestamp}.pth')
-            print(f'✓ Saved best model: Val Acc {val_acc:.2f}%')
+            torch.save({
+                'epoch': epoch,
+                'model_state_dict': model.state_dict(),
+                'optimizer_state_dict': optimizer.state_dict(),
+                'scheduler_state_dict': scheduler.state_dict(),
+                'val_loss': val_loss,
+                'val_accuracy': val_acc,
+                'classes': classes,
+                'f1_score': f1,
+                'precision': precision,
+                'recall': recall,
+                'auc': auc,
+                'sample_rate': 22050,
+                'mel_params': {
+                    "n_fft": 2048,
+                    "hop_length": 512,
+                    "n_mels": 128,
+                    "f_min": 50,
+                    "f_max": 11025
+                },
+            },
+            f'./saved_models/best_model_fold{fold_num}_{timestamp}.pth' if fold_num > 0 else f'./saved_models/best_model_{timestamp}.pth')
+            
+            print(
+                f'✓ Saved best model: '
+                f'Train Acc={train_acc:.2f}% | '
+                f'Train Loss={train_loss:.2f}% | '
+                f'Val Acc={val_acc:.2f}% | '
+                f'Val Loss={val_loss:.2f}% | '
+            )
+
+            print(
+                f'F1={f1:.3f} | '
+                f'Precision={precision:.3f} | '
+                f'Recall={recall:.3f} | '
+                f'AUC={auc:.3f}'
+            )
         else:
             trigger_times += 1
             print(f'Validation loss did not improve. Trigger: {trigger_times}/{patience}')
@@ -201,7 +233,7 @@ def train_one_fold(train_dataset, val_dataset, classes, writer, fold_num, timest
     
     print(f'\nTraining completed! Best validation accuracy: {best_accuracy:.2f}%')
 
-    Logger.plot_confusion_matrix(model, val_loader, classes, fold_num, writer, device)
+    logger.plot_confusion_matrix(model, val_loader, classes, fold_num, device)
     return best_accuracy
 
 

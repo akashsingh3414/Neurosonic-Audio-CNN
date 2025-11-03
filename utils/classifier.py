@@ -19,7 +19,7 @@ class AudioClassifier:
         print(f"Using device: {self.device}")
 
         if model_path is None:
-            model_path = "./saved_models/best_model_20251027_182122_80_B.pth"
+            model_path = "./saved_models/best_model_20251103_185735_82.pth"
 
         if not Path(model_path).exists():
             raise FileNotFoundError(f"Model file not found: {model_path}")

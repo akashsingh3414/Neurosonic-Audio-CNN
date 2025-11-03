@@ -13,8 +13,9 @@ class Logger:
         self.writer = writer
 
     def log_metrics(self, epoch, train_loss, val_loss, train_acc, val_acc, f1, precision, recall, auc, lr):
-        """Logs all scalar metrics for each epoch."""
+        """Logs all scalar metrics for each epoch (single file only)."""
         w = self.writer
+
         w.add_scalar('Loss/Train', train_loss, epoch)
         w.add_scalar('Loss/Validation', val_loss, epoch)
         w.add_scalar('Accuracy/Train', train_acc, epoch)
@@ -24,15 +25,7 @@ class Logger:
         w.add_scalar('Metrics/Precision', precision, epoch)
         w.add_scalar('Metrics/Recall', recall, epoch)
         w.add_scalar('Metrics/AUC', auc, epoch)
-
-        w.add_scalars('Summary/Metrics', {
-            'Train Acc': train_acc,
-            'Val Acc': val_acc,
-            'F1': f1,
-            'Precision': precision,
-            'Recall': recall,
-            'AUC': auc
-        }, epoch)
+    
 
     def plot_confusion_matrix(self, model, val_loader, classes, fold_num, device):
         """Generates and logs a confusion matrix to TensorBoard."""

@@ -22,36 +22,25 @@ class TimeShift(nn.Module):
             shift = int(np.random.uniform(-self.shift_max, self.shift_max) * waveform.shape[-1])
             return torch.roll(waveform, shift, dims=-1)
         return waveform
-
-class PitchShift(torch.nn.Module):
+class SpectrogramPitchShift(nn.Module):
     """
-    Randomly pitch-shift an audio waveform.
-    Args:
-        sample_rate (int): Audio sampling rate (e.g., 44100 or 22050)
-        n_steps (tuple or list): Range of pitch shift in semitones, e.g. (-2, 2)
-        p (float): Probability of applying the shift
+    Pitch shift by rolling mel bins (memory efficient).
+    This approximates pitch shift on spectrograms.
     """
-    def __init__(self, sample_rate=44100, n_steps=(-2, 2), p=0.5):
+    def __init__(self, max_shift_bins=5, p=0.5):
         super().__init__()
-        self.sample_rate = sample_rate
-        self.n_steps = n_steps
+        self.max_shift_bins = max_shift_bins
         self.p = p
-
-    def forward(self, waveform):
-        # waveform: (channels, time)
-        if random.random() > self.p:
-            return waveform  # no change
-
-        # Pick random shift in semitones
-        steps = random.uniform(self.n_steps[0], self.n_steps[1])
-
-        # Apply torchaudio pitch shift
-        shifted = torchaudio.functional.pitch_shift(
-            waveform, 
-            sample_rate=self.sample_rate, 
-            n_steps=steps
-        )
-        return shifted
+    
+    def forward(self, spectrogram):
+        if not self.training or torch.rand(1).item() > self.p:
+            return spectrogram
+        
+        shift = torch.randint(-self.max_shift_bins, self.max_shift_bins + 1, (1,)).item()
+        if shift == 0:
+            return spectrogram
+        
+        return torch.roll(spectrogram, shifts=shift, dims=1)
 
 class AddGaussianNoise(nn.Module):
     """Add Gaussian noise to waveform"""
